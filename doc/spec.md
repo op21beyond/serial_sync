@@ -65,15 +65,17 @@
 | 0x08 | TXSTATUS  | RO  | bit0 = tx_busy |
 | 0x0C | RXDATA    | RO  | 최근 수신 데이터 |
 | 0x10 | RXSTATUS  | RO  | bit0 = rx_valid(sticky, read 시 clear) |
+| 0x14 | RXCOUNT   | RW  | preamble 비트 카운터 (32bit, `cfg.rx_count_en`=1일 때만 증가, 0xFFFFFFFF에서 0으로 wrap). APB write로 임의 값 초기화 가능 |
 
 ### CFG 비트필드 (0x00)
 
-| Bits  | Name       | 설명 |
-|-------|------------|------|
-| [0]   | mode       | 0=preamble(default), 1=clock+data |
-| [2:1] | width_sel  | 00=1(default), 01=2, 10=4 |
-| [6:3] | length_m1  | length = length_m1+1 (1~16), default 0(=1) |
-| [16:7]| clkdiv     | 100~1000, default 100 |
+| Bits  | Name         | 설명 |
+|-------|--------------|------|
+| [0]   | mode         | 0=preamble(default), 1=clock+data |
+| [2:1] | width_sel    | 00=1(default), 01=2, 10=4 |
+| [6:3] | length_m1    | length = length_m1+1 (1~16), default 0(=1) |
+| [16:7]| clkdiv       | 100~1000, default 100 |
+| [17]  | rx_count_en  | 1=preamble 모드에서 preamble 검출마다 RXCOUNT 증가, 0=비활성(default) |
 
 ---
 
@@ -90,6 +92,11 @@
 4. **CDC(Clock Domain Crossing)**: RX 입력(`ss_clk_i`, `ss_data_i`)은 2단 동기화(double-flop synchronizer) 후 사용. 두 칩이 별도 클럭 도메인이라는 실제 사용 환경을 고려한 안전장치.
 5. **Reserved 값 처리**: `cfg.width_sel = 2'b11`은 미정의이며 구현에서는 N=4로 처리.
 6. **clkdiv=0 방어**: 스펙상 허용 범위가 100~1000이므로 발생하지 않아야 하나, 0 입력 시 divide-by-1로 클램프하여 hang을 방지.
+7. **preamble 비트 카운터 (RXCOUNT)**: `cfg.mode`가 preamble일 때, preamble 비트 패턴(1→0)이 검출될 때마다 (R_PRE_CHK0 통과 시점, 즉 실제 데이터 수신 시작 직전) 32bit 카운터를 1 증가시킨다.
+   - `cfg.rx_count_en`(CFG bit 17)로 활성화/비활성화 제어. 기본값은 비활성(0).
+   - clock 모드에서는 preamble이 없으므로 카운터가 동작하지 않는다 (증가하지 않음).
+   - `0xFFFFFFFF` 도달 후 다음 증가에서 `0x00000000`으로 자연 wrap-around (추가 로직 없이 32bit 레지스터 오버플로우로 구현).
+   - APB write로 카운터 값을 임의로 초기화 가능. write와 preamble 검출로 인한 증가가 동일 사이클에 겹치는 경우는 없다고 가정(APB write side effect는 write pulse 사이클에만 반영되고, 그 외 사이클은 RX 코어 값을 그대로 래치).
 
 ---
 
