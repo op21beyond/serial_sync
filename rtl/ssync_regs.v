@@ -18,7 +18,7 @@ module ssync_regs (
     input  wire        pwrite,
     input  wire [7:0]  paddr,
     /* verilator lint_off UNUSEDSIGNAL */
-    input  wire [31:0] pwdata,  // [31:17] reserved, unused
+    input  wire [31:0] pwdata,  // [31:20] reserved, unused
     /* verilator lint_on UNUSEDSIGNAL */
     output reg  [31:0] prdata,
     output wire        pready,
@@ -29,6 +29,8 @@ module ssync_regs (
     output reg  [3:0]   cfg_length_m1,
     output reg  [9:0]   cfg_clkdiv,
     output reg          cfg_rx_count_en,
+    output reg          cfg_tx_en,
+    output reg          cfg_rx_en,
 
     // tx core interface
     input  wire        tx_busy,
@@ -71,6 +73,8 @@ module ssync_regs (
             cfg_length_m1   <= 4'd0;      // length = 1
             cfg_clkdiv      <= 10'd100;
             cfg_rx_count_en <= 1'b0;      // counter disabled by default
+            cfg_tx_en       <= 1'b1;      // TX active by default
+            cfg_rx_en       <= 1'b1;      // RX active by default
             tx_wdata        <= 16'd0;
             tx_start         <= 1'b0;
             rx_valid_sticky <= 1'b0;
@@ -93,6 +97,8 @@ module ssync_regs (
                         cfg_length_m1   <= pwdata[`SSYNC_CFG_LENGTH_MSB:`SSYNC_CFG_LENGTH_LSB];
                         cfg_clkdiv      <= pwdata[`SSYNC_CFG_CLKDIV_MSB:`SSYNC_CFG_CLKDIV_LSB];
                         cfg_rx_count_en <= pwdata[`SSYNC_CFG_RX_COUNT_EN_BIT];
+                        cfg_tx_en       <= pwdata[`SSYNC_CFG_TX_EN_BIT];
+                        cfg_rx_en       <= pwdata[`SSYNC_CFG_RX_EN_BIT];
                     end
                     `SSYNC_REG_TXDATA: begin
                         // spec item 5: while TX busy, writes to data reg are ignored
@@ -124,6 +130,8 @@ module ssync_regs (
                 prdata[`SSYNC_CFG_LENGTH_MSB:`SSYNC_CFG_LENGTH_LSB]     = cfg_length_m1;
                 prdata[`SSYNC_CFG_CLKDIV_MSB:`SSYNC_CFG_CLKDIV_LSB]     = cfg_clkdiv;
                 prdata[`SSYNC_CFG_RX_COUNT_EN_BIT]                      = cfg_rx_count_en;
+                prdata[`SSYNC_CFG_TX_EN_BIT]                            = cfg_tx_en;
+                prdata[`SSYNC_CFG_RX_EN_BIT]                            = cfg_rx_en;
             end
             `SSYNC_REG_TXDATA:    prdata = {16'd0, tx_wdata};
             `SSYNC_REG_TXSTATUS:  prdata = {31'd0, tx_busy};

@@ -37,6 +37,12 @@
 - 현재 시리얼 전송 중에는 APB로 data 레지스터를 덮어쓰지 못하고 write는 무시한다.
 - 시리얼 전송 중에 다른 제어 레지스터는 쓰기를 하지 않는다고 가정한다.
 
+### 2.5 TX 활성화 (`cfg.tx_en`)
+
+- APB 레지스터 접근(read/write)은 `cfg.tx_en` 값과 무관하게 항상 가능하다.
+- `cfg.tx_en=0`이면 시리얼 신호 생성 및 출력이 비활성화되고, `ss_tx_clk`/`ss_tx_data`는 0으로 고정된다.
+- `cfg.tx_en=1`(default)일 때만 실제로 시리얼 프레임을 생성/출력한다.
+
 ---
 
 ## 3. 수신 (RX)
@@ -51,11 +57,18 @@
   - N비트 serial data 수신이 끝난 후에만 data 레지스터에 저장되고, serial data 수신 중 중간 값으로 data 레지스터를 쓰지 않는다.
 - **preamble 모드**: preamble 비트 패턴 감지 후 시리얼 비트 수만큼 serial data를 수신한 후 data register를 업데이트한다.
 
+### 3.1 RX 활성화 (`cfg.rx_en`)
+
+- APB 레지스터 접근(read/write)은 `cfg.rx_en` 값과 무관하게 항상 가능하다.
+- `cfg.rx_en=0`이면 serial 입력 수신 동작이 비활성화된다. preamble 검출/clock edge 감지를 포함한 모든 수신 FSM 동작이 정지되고, `rx_valid`는 발생하지 않는다.
+- `RXDATA`, `RXCOUNT`는 비활성화 시점의 마지막 값을 그대로 유지한다 (클리어되지 않음).
+- `cfg.rx_en=1`(default)일 때만 실제로 수신 동작을 수행한다.
+
 ---
 
 ## 4. 레지스터 맵 (구현 정의)
 
-원본 스펙은 `cfg.mode`, `cfg.length`, `cfg.width`, `cfg.clkdiv`라는 논리적 필드명만 정의하고 있어,
+원본 스펙은 `cfg.mode`, `cfg.length`, `cfg.width`, `cfg.clkdiv`, `cfg.tx_en`, `cfg.rx_en`라는 논리적 필드명만 정의하고 있어,
 아래는 이를 APB 레지스터로 매핑한 본 구현의 세부 정의이다. (byte address, 4B word-aligned)
 
 | Addr | Name      | R/W | 설명 |
@@ -76,6 +89,8 @@
 | [6:3] | length_m1    | length = length_m1+1 (1~16), default 0(=1) |
 | [16:7]| clkdiv       | 100~1000, default 100 |
 | [17]  | rx_count_en  | 1=preamble 모드에서 preamble 검출마다 RXCOUNT 증가, 0=비활성(default) |
+| [18]  | tx_en        | 1=TX 신호 생성/출력 활성(default), 0=`ss_tx_clk`/`ss_tx_data` 0 고정 |
+| [19]  | rx_en        | 1=RX 수신 동작 활성(default), 0=수신 FSM 정지(APB 접근은 항상 가능) |
 
 ---
 
@@ -97,6 +112,10 @@
    - clock 모드에서는 preamble이 없으므로 카운터가 동작하지 않는다 (증가하지 않음).
    - `0xFFFFFFFF` 도달 후 다음 증가에서 `0x00000000`으로 자연 wrap-around (추가 로직 없이 32bit 레지스터 오버플로우로 구현).
    - APB write로 카운터 값을 임의로 초기화 가능. write와 preamble 검출로 인한 증가가 동일 사이클에 겹치는 경우는 없다고 가정(APB write side effect는 write pulse 사이클에만 반영되고, 그 외 사이클은 RX 코어 값을 그대로 래치).
+8. **`cfg.tx_en` / `cfg.rx_en` 기본값 및 동작**: 두 비트 모두 리셋 후 기본값은 **1 (활성)** 이다 — 이 필드가 없던 기존 동작(항상 송수신 가능)과의 호환을 위한 선택.
+   - `tx_en=0`으로 전환되는 순간, TX 코어는 진행 중이던 프레임 유무와 관계없이 즉시 `S_IDLE`로 강제되고 `tx_busy`, `ss_tx_clk`, `ss_tx_data`가 모두 0으로 클리어된다. `rx_en=0`도 동일하게 RX FSM을 즉시 `R_IDLE`로 강제한다(`RXDATA`/`RXCOUNT` 값은 보존, `rx_valid`만 억제).
+     - 스펙 2.4항("시리얼 전송 중에 다른 제어 레지스터는 쓰기를 하지 않는다고 가정")과 동일한 전제 하에, 정상 사용에서는 전송 도중 `tx_en`/`rx_en`을 바꾸지 않는다고 가정한다. 다만 구현은 방어적으로 즉시 idle로 복귀하도록 만들어, 어떤 시점에 비활성화되어도 출력이 확실히 0이 되도록 했다.
+   - `TXDATA` write는 `tx_en` 값과 무관하게 APB 상에서는 항상 정상적으로 동작한다(스펙 2.4의 busy 체크만 적용). 다만 `tx_en=0`이면 그 write가 만든 `tx_start` 펄스를 TX 코어가 무시하므로 실제 송신은 시작되지 않는다.
 
 ---
 

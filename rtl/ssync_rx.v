@@ -27,6 +27,7 @@ module ssync_rx (
     input  wire [3:0]  cfg_length_m1,
     input  wire [9:0]  cfg_clkdiv,
     input  wire        cfg_rx_count_en,
+    input  wire        cfg_rx_en,       // 0=RX disabled, ignores serial input
 
     input  wire        ss_clk_i,
     input  wire [3:0]  ss_data_i,
@@ -119,6 +120,14 @@ module ssync_rx (
             rx_valid      <= 1'b0;
             tick_sync_rst <= 1'b0;
             preamble_bit_count <= 32'd0;
+        end else if (!cfg_rx_en) begin
+            // RX disabled: stop receiving and force idle. rx_data and
+            // preamble_bit_count hold their last value (frozen, not
+            // cleared); any in-flight reception is abandoned (spec
+            // assumes cfg is stable during a transfer).
+            state         <= R_IDLE;
+            rx_valid      <= 1'b0;
+            tick_sync_rst <= 1'b0;
         end else begin
             rx_valid      <= 1'b0; // default: pulse only on update
             tick_sync_rst <= 1'b0;

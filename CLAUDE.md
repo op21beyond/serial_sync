@@ -47,6 +47,10 @@ These come from the spec and are not negotiable:
    `pclk`. Do not introduce a second clock source.
 4. **`cfg.length` must be a multiple of N** (`cfg.width`), 1..16.
 5. **TXDATA writes are ignored while `tx_busy`.**
+6. **APB access is always enabled**, regardless of `cfg.tx_en`/`cfg.rx_en`.
+   Those bits only gate signal generation/output (TX) and signal reception
+   (RX) — never the register interface itself. `ss_tx_clk`/`ss_tx_data` must
+   be driven 0 whenever `cfg.tx_en=0`.
 
 ## Conventions
 

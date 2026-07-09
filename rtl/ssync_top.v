@@ -33,6 +33,8 @@ module ssync_top (
     wire [3:0]  cfg_length_m1;
     wire [9:0]  cfg_clkdiv;
     wire        cfg_rx_count_en;
+    wire        cfg_tx_en;
+    wire        cfg_rx_en;
 
     wire        tx_busy;
     wire        tx_start;
@@ -57,6 +59,8 @@ module ssync_top (
         .cfg_length_m1      (cfg_length_m1),
         .cfg_clkdiv         (cfg_clkdiv),
         .cfg_rx_count_en    (cfg_rx_count_en),
+        .cfg_tx_en          (cfg_tx_en),
+        .cfg_rx_en          (cfg_rx_en),
         .tx_busy            (tx_busy),
         .tx_start           (tx_start),
         .tx_wdata           (tx_wdata),
@@ -72,6 +76,7 @@ module ssync_top (
         .cfg_width_sel  (cfg_width_sel),
         .cfg_length_m1  (cfg_length_m1),
         .cfg_clkdiv     (cfg_clkdiv),
+        .cfg_tx_en      (cfg_tx_en),
         .tx_start       (tx_start),
         .tx_wdata       (tx_wdata),
         .tx_busy        (tx_busy),
@@ -87,6 +92,7 @@ module ssync_top (
         .cfg_length_m1       (cfg_length_m1),
         .cfg_clkdiv          (cfg_clkdiv),
         .cfg_rx_count_en     (cfg_rx_count_en),
+        .cfg_rx_en           (cfg_rx_en),
         .ss_clk_i            (ss_rx_clk),
         .ss_data_i           (ss_rx_data),
         .rx_data             (rx_data),
