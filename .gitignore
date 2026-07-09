@@ -1,0 +1,9 @@
+# Verilator build output
+sim/build/
+sim/build_*/
+*.fst
+*.vcd
+
+# Editor / OS
+*.swp
+.DS_Store
