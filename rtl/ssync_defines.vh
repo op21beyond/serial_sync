@@ -21,13 +21,15 @@
 `define SSYNC_REG_TXSTATUS 8'h08   // RO  bit0 = tx_busy
 `define SSYNC_REG_RXDATA   8'h0C   // RO
 `define SSYNC_REG_RXSTATUS 8'h10   // RO  bit0 = rx_valid (sticky, clear on read)
+`define SSYNC_REG_RXCOUNT  8'h14   // RW  preamble bit counter (32bit, wrap-around)
 
 // ---- CFG register bit layout ----
 // [0]      mode          0=preamble(default) 1=clock+data
 // [2:1]    width_sel     00=1(default) 01=2 10=4
 // [6:3]    length_m1     length = length_m1+1 (1..16), default 0 -> length=1
 // [16:7]   clkdiv        100..1000, default 100
-// [31:17]  reserved
+// [17]     rx_count_en   1=enable preamble bit counter, 0=disable (default)
+// [31:18]  reserved
 `define SSYNC_CFG_MODE_BIT       0
 `define SSYNC_CFG_WIDTH_LSB      1
 `define SSYNC_CFG_WIDTH_MSB      2
@@ -35,5 +37,6 @@
 `define SSYNC_CFG_LENGTH_MSB     6
 `define SSYNC_CFG_CLKDIV_LSB     7
 `define SSYNC_CFG_CLKDIV_MSB     16
+`define SSYNC_CFG_RX_COUNT_EN_BIT 17
 
 `endif // SSYNC_DEFINES_VH
