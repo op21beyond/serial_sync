@@ -116,6 +116,8 @@ module tb_ssync_top;
     endtask
 
     // configure chip (mode/width/length/clkdiv) via CFG register
+    // tx_en/rx_en are always set (1) here since this task always drives a
+    // full CFG word; individual tx_en/rx_en tests write CFG directly.
     task automatic cfg_set(input bit is_a, input bit mode, input [1:0] wsel,
                             input [3:0] len_m1, input [9:0] clkdiv);
         logic [31:0] cfg;
@@ -124,6 +126,8 @@ module tb_ssync_top;
         cfg[`SSYNC_CFG_WIDTH_MSB:`SSYNC_CFG_WIDTH_LSB]   = wsel;
         cfg[`SSYNC_CFG_LENGTH_MSB:`SSYNC_CFG_LENGTH_LSB] = len_m1;
         cfg[`SSYNC_CFG_CLKDIV_MSB:`SSYNC_CFG_CLKDIV_LSB] = clkdiv;
+        cfg[`SSYNC_CFG_TX_EN_BIT]                        = 1'b1;
+        cfg[`SSYNC_CFG_RX_EN_BIT]                        = 1'b1;
         apb_write(is_a, `SSYNC_REG_CFG, cfg);
     endtask
 
@@ -220,6 +224,8 @@ module tb_ssync_top;
             cfg[`SSYNC_CFG_WIDTH_MSB:`SSYNC_CFG_WIDTH_LSB]   = `SSYNC_WIDTH_1;
             cfg[`SSYNC_CFG_LENGTH_MSB:`SSYNC_CFG_LENGTH_LSB] = 4'd7;
             cfg[`SSYNC_CFG_CLKDIV_MSB:`SSYNC_CFG_CLKDIV_LSB] = 10'd100;
+            cfg[`SSYNC_CFG_TX_EN_BIT]                        = 1'b1;
+            cfg[`SSYNC_CFG_RX_EN_BIT]                        = 1'b1;
             apb_write(1'b0, `SSYNC_REG_CFG, cfg); // B = TX side now
             apb_write(1'b1, `SSYNC_REG_CFG, cfg); // A = RX side now
             apb_write(1'b0, `SSYNC_REG_TXDATA, 32'h0000_00C3);
@@ -238,6 +244,79 @@ module tb_ssync_top;
                 check(rd[7:0] == 8'hC3, $sformatf("T6: B->A rxdata=%0h expected=c3", rd[7:0]));
             end
         end
+
+        // ---- Test 7: cfg.tx_en=0 -> APB access still works, but no
+        // transmission starts and ss_tx_clk/ss_tx_data stay at 0 ----
+        begin
+            logic [31:0] cfg, status;
+            int          i;
+            bit          tx_output_clean;
+
+            cfg = 32'd0;
+            cfg[`SSYNC_CFG_MODE_BIT]                         = `SSYNC_MODE_PREAMBLE;
+            cfg[`SSYNC_CFG_WIDTH_MSB:`SSYNC_CFG_WIDTH_LSB]   = `SSYNC_WIDTH_1;
+            cfg[`SSYNC_CFG_LENGTH_MSB:`SSYNC_CFG_LENGTH_LSB] = 4'd7;
+            cfg[`SSYNC_CFG_CLKDIV_MSB:`SSYNC_CFG_CLKDIV_LSB] = 10'd100;
+            cfg[`SSYNC_CFG_TX_EN_BIT]                        = 1'b0; // TX disabled
+            cfg[`SSYNC_CFG_RX_EN_BIT]                        = 1'b1;
+            apb_write(1'b1, `SSYNC_REG_CFG, cfg); // chip A: TX disabled
+
+            apb_read(1'b1, `SSYNC_REG_CFG, status);
+            check(status[`SSYNC_CFG_TX_EN_BIT] == 1'b0,
+                  "T7: CFG readback shows tx_en=0 (APB access unaffected)");
+
+            apb_write(1'b1, `SSYNC_REG_TXDATA, 32'h0000_00FF); // APB write still accepted
+            apb_read(1'b1, `SSYNC_REG_TXSTATUS, status);
+            check(status[0] == 1'b0, "T7: tx_busy stays 0 when tx_en=0 (no transmission starts)");
+
+            tx_output_clean = 1'b1;
+            for (i = 0; i < 500; i = i + 1) begin
+                @(posedge pclk);
+                if (a_tx_clk !== 1'b0 || a_tx_data !== 4'b0000)
+                    tx_output_clean = 1'b0;
+            end
+            check(tx_output_clean, "T7: ss_tx_clk/ss_tx_data held at 0 for 500 cycles while tx_en=0");
+        end
+
+        // ---- Test 8: cfg.rx_en=0 -> RX never asserts rx_valid, even
+        // though the partner chip transmits normally ----
+        begin
+            logic [31:0] cfg, status;
+            int          timeout;
+
+            cfg = 32'd0;
+            cfg[`SSYNC_CFG_MODE_BIT]                         = `SSYNC_MODE_PREAMBLE;
+            cfg[`SSYNC_CFG_WIDTH_MSB:`SSYNC_CFG_WIDTH_LSB]   = `SSYNC_WIDTH_1;
+            cfg[`SSYNC_CFG_LENGTH_MSB:`SSYNC_CFG_LENGTH_LSB] = 4'd7;
+            cfg[`SSYNC_CFG_CLKDIV_MSB:`SSYNC_CFG_CLKDIV_LSB] = 10'd100;
+            cfg[`SSYNC_CFG_TX_EN_BIT]                        = 1'b1;
+            cfg[`SSYNC_CFG_RX_EN_BIT]                        = 1'b1;
+            apb_write(1'b1, `SSYNC_REG_CFG, cfg); // chip A: TX enabled (re-enable after T7)
+
+            cfg[`SSYNC_CFG_RX_EN_BIT] = 1'b0;
+            apb_write(1'b0, `SSYNC_REG_CFG, cfg); // chip B: RX disabled
+
+            apb_write(1'b1, `SSYNC_REG_TXDATA, 32'h0000_005A);
+
+            timeout = 0;
+            do begin
+                @(posedge pclk);
+                apb_read(1'b0, `SSYNC_REG_RXSTATUS, status);
+                timeout++;
+            end while (timeout < 3000);
+            check(status[0] == 1'b0, "T8: rx_valid never asserted while rx_en=0");
+
+            // wait for TX to go idle before the recovery check reprograms cfg
+            timeout = 0;
+            do begin
+                apb_read(1'b1, `SSYNC_REG_TXSTATUS, status);
+                timeout++;
+            end while (status[0] == 1'b1 && timeout < 20000);
+            check(status[0] == 1'b0, "T8: TX idle before recovery check");
+        end
+
+        // ---- Test 9: RX recovers normally once rx_en is re-enabled ----
+        send_and_check("T9 post-reenable preamble/W1/L8", `SSYNC_MODE_PREAMBLE, `SSYNC_WIDTH_1, 4'd7, 10'd100, 16'h5A);
 
         repeat (20) @(posedge pclk);
 

@@ -21,6 +21,7 @@ module ssync_tx (
     input  wire [1:0]  cfg_width_sel,   // N encode
     input  wire [3:0]  cfg_length_m1,   // length-1
     input  wire [9:0]  cfg_clkdiv,
+    input  wire        cfg_tx_en,       // 0=TX disabled, ss_clk/ss_data held low
 
     input  wire        tx_start,        // 1-cycle pulse, valid only if !tx_busy
     input  wire [15:0] tx_wdata,
@@ -69,6 +70,15 @@ module ssync_tx (
             ss_data       <= 4'b0000;
             sreg          <= 16'd0;
             bits_left     <= 5'd0;
+            tick_sync_rst <= 1'b0;
+        end else if (!cfg_tx_en) begin
+            // TX disabled: force idle and hold outputs low. Any in-flight
+            // frame is abandoned (spec assumes cfg is stable during a
+            // transfer, same as other control registers).
+            state         <= S_IDLE;
+            tx_busy       <= 1'b0;
+            ss_clk        <= 1'b0;
+            ss_data       <= 4'b0000;
             tick_sync_rst <= 1'b0;
         end else begin
             tick_sync_rst <= 1'b0; // default (1-cycle pulse only on start)

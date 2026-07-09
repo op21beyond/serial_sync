@@ -26,12 +26,15 @@ module ssync_rx (
     input  wire [1:0]  cfg_width_sel,
     input  wire [3:0]  cfg_length_m1,
     input  wire [9:0]  cfg_clkdiv,
+    input  wire        cfg_rx_count_en,
+    input  wire        cfg_rx_en,       // 0=RX disabled, ignores serial input
 
     input  wire        ss_clk_i,
     input  wire [3:0]  ss_data_i,
 
     output reg  [15:0] rx_data,
-    output reg          rx_valid   // 1-cycle pulse when rx_data updates
+    output reg          rx_valid,   // 1-cycle pulse when rx_data updates
+    output reg [31:0]  preamble_bit_count
 );
 
     // ---------------- width / length decode ----------------
@@ -116,6 +119,15 @@ module ssync_rx (
             rx_data       <= 16'd0;
             rx_valid      <= 1'b0;
             tick_sync_rst <= 1'b0;
+            preamble_bit_count <= 32'd0;
+        end else if (!cfg_rx_en) begin
+            // RX disabled: stop receiving and force idle. rx_data and
+            // preamble_bit_count hold their last value (frozen, not
+            // cleared); any in-flight reception is abandoned (spec
+            // assumes cfg is stable during a transfer).
+            state         <= R_IDLE;
+            rx_valid      <= 1'b0;
+            tick_sync_rst <= 1'b0;
         end else begin
             rx_valid      <= 1'b0; // default: pulse only on update
             tick_sync_rst <= 1'b0;
@@ -179,6 +191,9 @@ module ssync_rx (
                             bits_left <= length;
                             acc       <= 16'd0;
                             state     <= R_PDATA;
+                            // increment preamble bit counter when preamble detected
+                            if (cfg_rx_count_en)
+                                preamble_bit_count <= preamble_bit_count + 32'd1;
                         end else begin
                             state <= R_IDLE; // glitch, abort
                         end
