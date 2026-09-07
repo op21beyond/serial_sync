@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>토키 - 말하는 마스코트</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <h1>토키(Toki)에게 말을 걸어보세요</h1>
+    <p class="subtitle">텍스트를 입력하면 토키가 음성과 애니메이션으로 읽어줍니다.</p>
+
+    <div class="stage">
+      <svg id="mascot" viewBox="0 0 300 300" role="img" aria-label="토키 캐릭터">
+        <ellipse cx="150" cy="270" rx="90" ry="18" fill="#000" opacity="0.08" />
+        <circle id="body" cx="150" cy="150" r="110" fill="#4aa8ff" />
+        <circle cx="150" cy="150" r="110" fill="url(#shine)" opacity="0.5" />
+        <ellipse cx="90" cy="220" rx="26" ry="16" fill="#ffb84a" />
+        <ellipse cx="210" cy="220" rx="26" ry="16" fill="#ffb84a" />
+        <circle id="eyeL" cx="112" cy="130" r="26" fill="#fff" />
+        <circle id="eyeR" cx="188" cy="130" r="26" fill="#fff" />
+        <circle id="pupilL" cx="116" cy="132" r="12" fill="#1c2b3a" />
+        <circle id="pupilR" cx="192" cy="132" r="12" fill="#1c2b3a" />
+        <circle cx="120" cy="126" r="4" fill="#fff" />
+        <circle cx="196" cy="126" r="4" fill="#fff" />
+        <ellipse cx="90" cy="165" rx="14" ry="8" fill="#ff8a8a" opacity="0.7" />
+        <ellipse cx="210" cy="165" rx="14" ry="8" fill="#ff8a8a" opacity="0.7" />
+        <ellipse id="mouth" cx="150" cy="192" rx="26" ry="4" fill="#1c2b3a" />
+        <defs>
+          <radialGradient id="shine" cx="35%" cy="25%" r="60%">
+            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55" />
+            <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+          </radialGradient>
+        </defs>
+      </svg>
+    </div>
+
+    <div class="controls">
+      <label for="voiceSelect">목소리</label>
+      <select id="voiceSelect"></select>
+
+      <label for="textInput">토키에게 시킬 말</label>
+      <textarea id="textInput" rows="3" maxlength="500"
+        placeholder="예: 안녕! 나는 토키야. 오늘 기분이 어때?"></textarea>
+
+      <div class="row">
+        <button id="speakBtn">말하기</button>
+        <button id="stopBtn" disabled>멈추기</button>
+      </div>
+      <p id="status" class="status" aria-live="polite"></p>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
